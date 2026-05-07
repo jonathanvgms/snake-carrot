@@ -340,36 +340,14 @@
             reader.onload = function(e) {
                 const img = new Image();
                 img.onload = function() {
-                    const offscreen = document.createElement('canvas');
-                    offscreen.width = TILE_COUNT;
-                    offscreen.height = TILE_COUNT;
-                    const offCtx = offscreen.getContext('2d');
-                    offCtx.drawImage(img, 0, 0, TILE_COUNT, TILE_COUNT);
-                    const imageData = offCtx.getImageData(0, 0, TILE_COUNT, TILE_COUNT);
                     const bigCanvas = document.createElement('canvas');
                     bigCanvas.width = canvas.width;
                     bigCanvas.height = canvas.height;
                     const bigCtx = bigCanvas.getContext('2d');
-                    const scaled = bigCtx.createImageData(canvas.width, canvas.height);
-                    for (let y = 0; y < TILE_COUNT; y++) {
-                        for (let x = 0; x < TILE_COUNT; x++) {
-                            const idx = (y * TILE_COUNT + x) * 4;
-                            const r = imageData.data[idx];
-                            const g = imageData.data[idx + 1];
-                            const b = imageData.data[idx + 2];
-                            const a = imageData.data[idx + 3];
-                            for (let py = 0; py < GRID_SIZE; py++) {
-                                for (let px = 0; px < GRID_SIZE; px++) {
-                                    const dstIdx = ((y * GRID_SIZE + py) * canvas.width + (x * GRID_SIZE + px)) * 4;
-                                    scaled.data[dstIdx] = r;
-                                    scaled.data[dstIdx + 1] = g;
-                                    scaled.data[dstIdx + 2] = b;
-                                    scaled.data[dstIdx + 3] = a;
-                                }
-                            }
-                        }
-                    }
-                    bigCtx.putImageData(scaled, 0, 0);
+                    const s = Math.min(img.width, img.height);
+                    const sx = (img.width - s) / 2;
+                    const sy = (img.height - s) / 2;
+                    bigCtx.drawImage(img, sx, sy, s, s, 0, 0, canvas.width, canvas.height);
                     bgPattern = bigCtx.createPattern(bigCanvas, 'no-repeat');
                     useDefaultBg = false;
                     draw();
