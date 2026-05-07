@@ -13,13 +13,30 @@
 
         body {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
+            height: 100vh;
+            overflow: hidden;
+            gap: 30px;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #fff;
+        }
+
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            height: 640px;
+            padding: 10px 0;
         }
 
         h1 {
@@ -127,13 +144,30 @@
     </style>
 </head>
 <body>
-    <h1>🐍 Snake</h1>
-    <div class="score-board">
-        <span>Puntos: <strong id="score">0</strong></span>
-        <span>Nivel: <strong id="level">1</strong></span>
+    <div class="game-area">
+        <h1>🐍 Snake</h1>
+        <div class="score-board">
+            <span>Puntos: <strong id="score">0</strong></span>
+            <span>Nivel: <strong id="level">1</strong></span>
+        </div>
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+        <div class="controls">Usa las flechas del teclado para moverte</div>
     </div>
-    <canvas id="gameCanvas" width="600" height="600"></canvas>
-    <div class="controls">Usa las flechas del teclado para moverte</div>
+    <div class="side-panel">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+            <input type="file" id="imageInput" accept="image/png,image/jpeg,image/jpg" hidden>
+            <button onclick="document.getElementById('imageInput').click()" style="width:170px;background:#ffa500;color:#1a1a2e;border:none;padding:12px 20px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1rem;">🎨 Cargar fondo</button>
+            <button onclick="resetBackground()" id="resetBgBtn" style="width:170px;background:#555;color:#fff;border:none;padding:12px 20px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1rem;">Restaurar fondo</button>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+            <button onpointerdown="setDirection(0, -1)" style="width:80px;height:80px;font-size:38px;background:#333;color:#fff;border:3px solid #ffa500;border-radius:14px;cursor:pointer;user-select:none;touch-action:manipulation;box-shadow:0 4px 12px rgba(255,165,0,0.3);">⬆</button>
+            <div style="display:flex;gap:8px;">
+                <button onpointerdown="setDirection(-1, 0)" style="width:80px;height:80px;font-size:38px;background:#333;color:#fff;border:3px solid #ffa500;border-radius:14px;cursor:pointer;user-select:none;touch-action:manipulation;box-shadow:0 4px 12px rgba(255,165,0,0.3);">⬅</button>
+                <button onpointerdown="setDirection(1, 0)" style="width:80px;height:80px;font-size:38px;background:#333;color:#fff;border:3px solid #ffa500;border-radius:14px;cursor:pointer;user-select:none;touch-action:manipulation;box-shadow:0 4px 12px rgba(255,165,0,0.3);">➡</button>
+            </div>
+            <button onpointerdown="setDirection(0, 1)" style="width:80px;height:80px;font-size:38px;background:#333;color:#fff;border:3px solid #ffa500;border-radius:14px;cursor:pointer;user-select:none;touch-action:manipulation;box-shadow:0 4px 12px rgba(255,165,0,0.3);">⬇</button>
+        </div>
+    </div>
     
     <div class="start-screen" id="startScreen">
         <h2>🥕 Persigue las Zanahorias</h2>
@@ -174,6 +208,9 @@
         let audioCtx = null;
         let bgMusicInterval = null;
         let bgGain = null;
+
+        let bgPattern = null;
+        let useDefaultBg = true;
 
         function initAudio() {
             if (audioCtx) return;
@@ -250,6 +287,61 @@
             bgMusicInterval = null;
         }
 
+        function loadImageAsPixelArt(file) {
+            const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+            if (!validTypes.includes(file.type)) {
+                alert('Solo se aceptan PNG, JPEG o JPG');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    const offscreen = document.createElement('canvas');
+                    offscreen.width = TILE_COUNT;
+                    offscreen.height = TILE_COUNT;
+                    const offCtx = offscreen.getContext('2d');
+                    offCtx.drawImage(img, 0, 0, TILE_COUNT, TILE_COUNT);
+                    const imageData = offCtx.getImageData(0, 0, TILE_COUNT, TILE_COUNT);
+                    const bigCanvas = document.createElement('canvas');
+                    bigCanvas.width = canvas.width;
+                    bigCanvas.height = canvas.height;
+                    const bigCtx = bigCanvas.getContext('2d');
+                    const scaled = bigCtx.createImageData(canvas.width, canvas.height);
+                    for (let y = 0; y < TILE_COUNT; y++) {
+                        for (let x = 0; x < TILE_COUNT; x++) {
+                            const idx = (y * TILE_COUNT + x) * 4;
+                            const r = imageData.data[idx];
+                            const g = imageData.data[idx + 1];
+                            const b = imageData.data[idx + 2];
+                            const a = imageData.data[idx + 3];
+                            for (let py = 0; py < GRID_SIZE; py++) {
+                                for (let px = 0; px < GRID_SIZE; px++) {
+                                    const dstIdx = ((y * GRID_SIZE + py) * canvas.width + (x * GRID_SIZE + px)) * 4;
+                                    scaled.data[dstIdx] = r;
+                                    scaled.data[dstIdx + 1] = g;
+                                    scaled.data[dstIdx + 2] = b;
+                                    scaled.data[dstIdx + 3] = a;
+                                }
+                            }
+                        }
+                    }
+                    bigCtx.putImageData(scaled, 0, 0);
+                    bgPattern = bigCtx.createPattern(bigCanvas, 'no-repeat');
+                    useDefaultBg = false;
+                    draw();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function resetBackground() {
+            useDefaultBg = true;
+            bgPattern = null;
+            draw();
+        }
+
         function initSnake() {
             snake = [
                 { x: 10, y: 15 },
@@ -289,35 +381,49 @@
         }
 
         function drawSnake() {
-            ctx.fillStyle = '#ff6b35';
-            const headX = snake[0].x * GRID_SIZE;
-            const headY = snake[0].y * GRID_SIZE;
-            ctx.beginPath();
-            ctx.arc(headX + GRID_SIZE/2, headY + GRID_SIZE/2, GRID_SIZE/2 - 2, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = '#ffa500';
-            for (let i = 1; i < snake.length; i++) {
+            for (let i = snake.length - 1; i >= 0; i--) {
                 const x = snake[i].x * GRID_SIZE;
                 const y = snake[i].y * GRID_SIZE;
-                ctx.beginPath();
-                ctx.roundRect(x + 2, y + 2, GRID_SIZE - 4, GRID_SIZE - 4, 5);
-                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                if (i === 0) {
+                    ctx.fillStyle = '#ff6b35';
+                    ctx.beginPath();
+                    ctx.arc(x + GRID_SIZE/2, y + GRID_SIZE/2, GRID_SIZE/2 - 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = '#ffa500';
+                    ctx.beginPath();
+                    ctx.roundRect(x + 2, y + 2, GRID_SIZE - 4, GRID_SIZE - 4, 5);
+                    ctx.fill();
+                    ctx.stroke();
+                }
             }
         }
 
         function drawCarrot() {
-            ctx.font = `${GRID_SIZE - 2}px serif`;
+            ctx.font = `bold ${GRID_SIZE - 2}px serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             for (const f of foods) {
-                ctx.fillText(f.emoji, f.x * GRID_SIZE + GRID_SIZE / 2, f.y * GRID_SIZE + GRID_SIZE / 2);
+                const cx = f.x * GRID_SIZE + GRID_SIZE / 2;
+                const cy = f.y * GRID_SIZE + GRID_SIZE / 2;
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.strokeText(f.emoji, cx, cy);
+                ctx.fillText(f.emoji, cx, cy);
             }
         }
 
         function draw() {
-            ctx.fillStyle = '#0f0f23';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            if (useDefaultBg || !bgPattern) {
+                ctx.fillStyle = '#0f0f23';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = bgPattern;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
 
             drawGrid();
             drawCarrot();
@@ -404,6 +510,21 @@
         function resetGame() {
             gameOverEl.style.display = 'none';
             startGame();
+        }
+
+        document.getElementById('imageInput').addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                loadImageAsPixelArt(e.target.files[0]);
+            }
+        });
+
+        function setDirection(x, y) {
+            if (!isPlaying) return;
+            if (x !== 0 && direction.x !== -x) {
+                nextDirection = { x, y: 0 };
+            } else if (y !== 0 && direction.y !== -y) {
+                nextDirection = { x: 0, y };
+            }
         }
 
         document.addEventListener('keydown', (e) => {
